@@ -17,6 +17,15 @@
 #define WORD_ALIGNED_ATTR __attribute__((aligned(4)))
 #define WORD_PADDED(size) (((size)+3) & ~3)
 
+#if defined(PLATFORM_RP2040)
+// arduino-pico's linker script copies .time_critical* sections into RAM.
+// Each function gets a unique section name (as ESP-IDF does for IRAM_ATTR) so that
+// template/inline functions and plain functions don't conflict in one translation unit.
+#define _ELRS_RAM_SECTION_STR(x) #x
+#define _ELRS_RAM_SECTION(x) __attribute__((section(".time_critical.elrs." _ELRS_RAM_SECTION_STR(x)), noinline))
+#define IRAM_ATTR _ELRS_RAM_SECTION(__COUNTER__)
+#endif
+
 #undef ICACHE_RAM_ATTR //fix to allow both esp32 and esp8266 to use ICACHE_RAM_ATTR for mapping to IRAM
 #define ICACHE_RAM_ATTR IRAM_ATTR
 
@@ -71,6 +80,11 @@ extern bool pwmSerialDefined;
 
 #if defined(PLATFORM_ESP32)
 #include <soc/uart_pins.h>
+#endif
+#if defined(PLATFORM_RP2040)
+// UART0 default pins on the Pico
+#define U0RXD_GPIO_NUM (1)
+#define U0TXD_GPIO_NUM (0)
 #endif
 #if !defined(U0RXD_GPIO_NUM)
 #define U0RXD_GPIO_NUM (3)

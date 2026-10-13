@@ -9,6 +9,14 @@ EspFlashStream::EspFlashStream()
 
 void EspFlashStream::fillBuffer()
 {
+#if defined(PLATFORM_RP2040)
+    // Nothing is appended to RP2040 images yet, so read as erased flash.
+    // UF2 flashing doesn't guarantee 0xFF after the image (the last page may be
+    // zero-padded and stale data can follow), so a layout must be defined before
+    // reading real data here.
+    memset(_buffer, 0xff, sizeof(_buffer));
+    _bufferPos = 0;
+#else
     // Could also use spi_flash_read() here, but the return values differ between ESP (SPI_FLASH_RESULT_OK) and ESP32 (ESP_OK)
     if (ESP.flashRead(_flashBase + _flashOffset, (uint32_t *)_buffer, sizeof(_buffer)))
     {
@@ -19,6 +27,7 @@ void EspFlashStream::fillBuffer()
         // _bufferPos > sizeof() indicates error
         _bufferPos = sizeof(_buffer) + 1;
     }
+#endif
 }
 
 void EspFlashStream::setBaseAddress(size_t base)

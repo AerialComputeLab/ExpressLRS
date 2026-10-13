@@ -1809,7 +1809,11 @@ void EnterBindingModeSafely()
         // Force 3-plug binding mode
         config.SetPowerOnCounter(3);
         config.Commit();
+#if defined(PLATFORM_RP2040)
+        rp2040.reboot();
+#else
         ESP.restart();
+#endif
         // Unreachable
     }
 
@@ -1968,7 +1972,11 @@ void resetConfigAndReboot()
     LittleFS.begin();
     options_SetTrueDefaults();
 
+#if defined(PLATFORM_RP2040)
+    rp2040.reboot();
+#else
     ESP.restart();
+#endif
 }
 
 void setup()
@@ -2178,5 +2186,9 @@ void reset_into_bootloader(void)
 #elif defined(PLATFORM_ESP32)
     delay(100);
     setConnectionState(serialUpdate);
+#elif defined(PLATFORM_RP2040)
+    // USB BOOTSEL mode, to update by UF2
+    delay(100);
+    rp2040.rebootToBootloader();
 #endif
 }

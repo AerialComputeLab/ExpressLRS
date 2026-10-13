@@ -243,7 +243,7 @@ static void hardware_LoadFieldsFromDoc(JsonDocument &doc)
 bool hardware_init(EspFlashStream &strmFlash)
 {
     hardware_ClearAllFields();
-    builtinHardwareConfig.clear();
+    builtinHardwareConfig.remove(0);
 
     Stream *strmSrc;
     JsonDocument doc;

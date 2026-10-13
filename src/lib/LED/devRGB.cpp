@@ -23,7 +23,12 @@ static ESP32LedDriverGRB *stripgrb;
 static ESP32LedDriverRGB *striprgb;
 #else
 #include <NeoPixelBus.h>
+#if defined(PLATFORM_RP2040)
+// Claims a free state machine on PIO1, so it coexists with the CYW43 WiFi driver
+#define METHOD Rp2040x4Pio1Ws2812xMethod
+#else
 #define METHOD NeoEsp8266Uart1800KbpsMethod
+#endif
 static NeoPixelBus<NeoGrbFeature, METHOD> *stripgrb;
 static NeoPixelBus<NeoRgbFeature, METHOD> *striprgb;
 #endif

@@ -7,13 +7,18 @@
 #endif
 
 #if defined(PLATFORM_ESP8266)
-static constexpr uint8_t VOLTAGE_SOURCE_COUNT = 1;
 static constexpr uint16_t ADC_MAX_VALUE = 1023;
 static constexpr uint16_t ADC_SATURATION_MARGIN = 6;
 #else
-static constexpr uint8_t VOLTAGE_SOURCE_COUNT =4;
 static constexpr uint16_t ADC_MAX_VALUE = 4095;
 static constexpr uint16_t ADC_SATURATION_MARGIN = 24;
+#endif
+
+// The vsrc1-3 entries below are only defined for ESP32
+#if defined(PLATFORM_ESP32)
+static constexpr uint8_t VOLTAGE_SOURCE_COUNT = 4;
+#else
+static constexpr uint8_t VOLTAGE_SOURCE_COUNT = 1;
 #endif
 
 #if defined(PLATFORM_ESP32)

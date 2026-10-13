@@ -1,6 +1,13 @@
 #include "targets.h"
 #include <SPI.h>
 
+#if defined(PLATFORM_RP2040)
+// arduino-pico's SPIClass is the abstract HardwareSPI, the concrete class is SPIClassRP2040
+#define SPIEX_BASE_CLASS SPIClassRP2040
+#else
+#define SPIEX_BASE_CLASS SPIClass
+#endif
+
 /**
  * @brief An extension to the platform SPI class that provides some performance enhancements.
  *
@@ -10,11 +17,24 @@
  *    continue to do work while the SPI module is pumping the data from the FIFO to the external
  *    device.
  */
-class SPIExClass : public SPIClass
+class SPIExClass : public SPIEX_BASE_CLASS
 {
 public:
 #if defined(PLATFORM_ESP32)
     explicit SPIExClass(uint8_t spi_bus=HSPI) : SPIClass(spi_bus) {}
+#elif defined(PLATFORM_RP2040)
+    explicit SPIExClass(spi_inst_t *spi=spi0)
+        : SPIClassRP2040(spi, PIN_SPI0_MISO, PIN_SPI0_SS, PIN_SPI0_SCK, PIN_SPI0_MOSI), _spi(spi) {}
+
+    /**
+     * @brief Start the SPI bus on the given pins in 8-bit mode 0, MSB first.
+     *
+     * The RP2040 SPI block can't hold CS low across a multi-byte mode 0 transfer, so the
+     * NSS pins are driven in software. nss2 may be UNDEF_PIN.
+     */
+    void begin(int8_t sck, int8_t miso, int8_t mosi, int8_t nss, int8_t nss2);
+    using SPIClassRP2040::begin;
+    void setFrequency(uint32_t freq);
 #else
     explicit SPIExClass() : SPIClass() {}
 #endif
@@ -49,6 +69,10 @@ public:
 
 private:
     void _transfer(uint8_t cs_mask, uint8_t *data, uint32_t size, bool reading);
+#if defined(PLATFORM_RP2040)
+    spi_inst_t *_spi;
+    int8_t _nss[2] = {UNDEF_PIN, UNDEF_PIN};
+#endif
 };
 
 extern SPIExClass SPIEx;

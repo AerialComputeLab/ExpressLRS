@@ -52,7 +52,7 @@ String& getOptions()
 
 void setOptions(String &options)
 {
-    builtinOptions.clear();
+    builtinOptions.remove(0);
     builtinOptions.concat(options);
 }
 
@@ -90,7 +90,7 @@ void saveOptions(Stream &stream, bool customised)
     doc["flash-discriminator"] = firmwareOptions.flash_discriminator;
 
     serializeJson(doc, stream);
-    builtinOptions.clear();
+    builtinOptions.remove(0);
     serializeJson(doc, builtinOptions);
 }
 
@@ -203,7 +203,7 @@ static void options_LoadFromFlashOrFile(EspFlashStream &strmFlash)
     firmwareOptions.domain = doc["domain"] | 0;
     firmwareOptions.flash_discriminator = doc["flash-discriminator"] | 0U;
 
-    builtinOptions.clear();
+    builtinOptions.remove(0);
     saveOptions(builtinOptions, doc["customised"] | false);
 }
 
@@ -271,8 +271,15 @@ bool options_init()
     // ESP8266 sketch baseAddr is always 0
 #endif
 
+#if defined(PLATFORM_RP2040)
+    // EspFlashStream reads nothing on RP2040 yet, so the sketch size is unused
+    const uint32_t sketchSize = 0;
+#else
+    const uint32_t sketchSize = ESP.getSketchSize();
+#endif
+
     EspFlashStream strmFlash;
-    strmFlash.setBaseAddress(baseAddr + ESP.getSketchSize());
+    strmFlash.setBaseAddress(baseAddr + sketchSize);
 
     // Product / Device Name
     options_LoadProductAndDeviceName(strmFlash);
@@ -281,7 +288,7 @@ bool options_init()
     // hardware.json
     bool hasHardware = hardware_init(strmFlash);
     // flash location of logo image in RGB565 format
-    logo_image = baseAddr + ESP.getSketchSize() +
+    logo_image = baseAddr + sketchSize +
         ELRSOPTS_PRODUCTNAME_SIZE +
         ELRSOPTS_DEVICENAME_SIZE +
         ELRSOPTS_OPTIONS_SIZE +

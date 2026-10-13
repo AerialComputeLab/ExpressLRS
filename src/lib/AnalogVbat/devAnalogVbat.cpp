@@ -19,10 +19,11 @@
 #define VBAT_MIN_CRSFRATE 5000      // send VBat telemetry on change but at least every 5000ms
 
 typedef uint16_t voltageAnalogStorage_t;
-#if defined(PLATFORM_ESP8266)
-constexpr uint8_t VOLTAGE_SOURCE_COUNT = 1;
-#else
+// The vsrc1-3 entries below are only defined for ESP32
+#if defined(PLATFORM_ESP32)
 constexpr uint8_t VOLTAGE_SOURCE_COUNT = 4;
+#else
+constexpr uint8_t VOLTAGE_SOURCE_COUNT = 1;
 #endif
 
 typedef struct {
@@ -141,6 +142,9 @@ static int start()
 
         analogSetPinAttenuation(hardware_pin(voltageSources[sourceIdx].hardwarePin), (adc_attenuation_t)atten);
     }
+#elif defined(PLATFORM_RP2040)
+    // arduino-pico defaults to 10 bits
+    analogReadResolution(12);
 #endif
 
     return VBAT_SAMPLE_INTERVAL;

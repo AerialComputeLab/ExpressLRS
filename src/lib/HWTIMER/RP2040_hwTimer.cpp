@@ -20,6 +20,9 @@ volatile int32_t hwTimer::FreqOffset = 0;
 // Same resolution as the ESP timers, so FreqOffset steps are 0.2us
 #define HWTIMER_TICKS_PER_US 5
 
+// Shared by the timer IRQ and the GPIO IRQ, above PICO_DEFAULT_IRQ_PRIORITY (0x80)
+#define HWTIMER_IRQ_PRIORITY 0x40
+
 // The RP2040 system timer counts whole microseconds, and an alarm fires when the low 32 bits
 // of the counter equal the alarm value. The next event is scheduled on an absolute time kept
 // as whole microseconds plus a remainder in ticks (0-4), so the average rate is exact at 0.2us
@@ -94,9 +97,13 @@ void hwTimer::init(void (*callbackTick)(), void (*callbackTock)())
         alarmMask = 1u << alarmNum;
         const uint irqNum = TIMER_IRQ_0 + alarmNum;
         irq_set_exclusive_handler(irqNum, hwTimer::callback);
-        // Keep the default priority, the same as the GPIO IRQ used for the radio DIO. resume()
-        // is called from inside the radio ISR and the forced tock must wait until that ISR has
-        // returned (as on ESP), not preempt it.
+        // The timer and the GPIO IRQ (radio DIO) must have the SAME priority: resume() is called
+        // from inside the radio ISR and the forced tock must wait until that ISR has returned
+        // (as on ESP), not preempt it. Both are raised above the default priority used by
+        // arduino-pico's USB IRQs (USBCTRL and the tud_task() IRQ), which otherwise delay
+        // timer edges by 10-20us while USB serial is busy.
+        irq_set_priority(irqNum, HWTIMER_IRQ_PRIORITY);
+        irq_set_priority(IO_IRQ_BANK0, HWTIMER_IRQ_PRIORITY);
         hw_set_bits(&timer_hw->inte, alarmMask);
         irq_set_enabled(irqNum, true);
         DBGLN("hwTimer Init, alarm %d", alarmNum);

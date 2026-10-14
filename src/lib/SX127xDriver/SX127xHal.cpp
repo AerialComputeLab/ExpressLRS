@@ -56,6 +56,11 @@ void SX127xHal::init()
     SPIEx.setBitOrder(MSBFIRST);
     SPIEx.setDataMode(SPI_MODE0);
     SPIEx.setFrequency(10000000);
+#elif defined(PLATFORM_RP2040)
+    // NSS is driven in software by SPIEx, the PL022 can't hold CS across multi-byte transfers
+    SPIEx.begin(GPIO_PIN_SCK, GPIO_PIN_MISO, GPIO_PIN_MOSI, GPIO_PIN_NSS, GPIO_PIN_NSS_2);
+    gpio_pull_up(GPIO_PIN_MISO);
+    SPIEx.setFrequency(10000000);
 #endif
 
     attachInterrupt(digitalPinToInterrupt(GPIO_PIN_DIO0), this->dioISR_1, RISING);

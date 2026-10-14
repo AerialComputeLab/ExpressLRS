@@ -14,8 +14,18 @@ void SPIExClass::begin(int8_t sck, int8_t miso, int8_t mosi, int8_t nss, int8_t 
         ERRLN("SCK %d / MISO %d / MOSI %d are not valid SPI%d pins", sck, miso, mosi, spi_get_index(_spi));
         return;
     }
+    // Routes the pins to the SPI block. It does NOT reliably initialise the block:
+    // its beginTransaction() only calls spi_init() when the clock differs from the
+    // current settings, and begin() passes the current settings, so the block stays in reset.
     SPIClassRP2040::begin(false);
+    // Take the block out of reset and enable it. setFrequency() sets the real clock.
+    spi_init(_spi, 1000000);
     spi_set_format(_spi, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+    if (!(spi_get_hw(_spi)->cr1 & SPI_SSPCR1_SSE_BITS))
+    {
+        // _transfer() would wait forever for data from a disabled block
+        ERRLN("SPI%d failed to start", spi_get_index(_spi));
+    }
 
     _nss[0] = nss;
     _nss[1] = nss2;

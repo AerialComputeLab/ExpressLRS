@@ -38,6 +38,9 @@
 #include "RXEndpoint.h"
 #include "RXOTAConnector.h"
 #include "rx-serial/devSerialIO.h"
+#if defined(RP2040_BENCH_CRSF_FRAMES)
+#include "bench_crsf.h"
+#endif
 
 #include <LittleFS.h>
 #if defined(PLATFORM_ESP8266)
@@ -114,7 +117,12 @@ bool pwmSerialDefined = false;
 uint32_t serialBaud;
 
 /* SERIAL_PROTOCOL_TX is used by CRSF output */
+#if defined(PLATFORM_RP2040)
+// On arduino-pico Serial is USB CDC (used for logging), and UART0 is Serial1
+#define SERIAL_PROTOCOL_TX Serial1
+#else
 #define SERIAL_PROTOCOL_TX Serial
+#endif
 
 #if defined(PLATFORM_ESP32)
     #define SERIAL1_PROTOCOL_TX Serial1
@@ -128,7 +136,11 @@ uint32_t serialBaud;
 
 SerialIO *serialIO = nullptr;
 
+#if defined(PLATFORM_RP2040)
+#define SERIAL_PROTOCOL_RX Serial1
+#else
 #define SERIAL_PROTOCOL_RX Serial
+#endif
 #define SERIAL1_PROTOCOL_RX Serial1
 
 StubbornSender DataDlSender;
@@ -1352,6 +1364,26 @@ static void setupSerial()
     // ARDUINO_CORE_INVERT_FIX PT2 end
 
     Serial.begin(serialBaud, serialConfig, GPIO_PIN_RCSIGNAL_RX, GPIO_PIN_RCSIGNAL_TX, invert);
+#elif defined(PLATFORM_RP2040)
+    uint16_t serialConfig = SERIAL_8N1;
+
+    if(sbusSerialOutput)
+    {
+        serialConfig = SERIAL_8E2;
+    }
+    else if(hottTlmSerial)
+    {
+        serialConfig = SERIAL_8N2;
+    }
+
+    // The pins must belong to UART0 (e.g. GP0/GP1), otherwise the defaults are kept
+    if (!SERIAL_PROTOCOL_TX.setTX(GPIO_PIN_RCSIGNAL_TX) || !SERIAL_PROTOCOL_TX.setRX(GPIO_PIN_RCSIGNAL_RX))
+    {
+        ERRLN("serial pins TX %d / RX %d are not UART0 pins", GPIO_PIN_RCSIGNAL_TX, GPIO_PIN_RCSIGNAL_RX);
+    }
+    SERIAL_PROTOCOL_TX.setInvertTX(invert);
+    SERIAL_PROTOCOL_TX.setInvertRX(invert);
+    SERIAL_PROTOCOL_TX.begin(serialBaud, serialConfig);
 #endif
 
     if (firmwareOptions.is_airport)
@@ -1396,6 +1428,10 @@ static void setupSerial()
 #endif
 #else
     BackpackOrLogStrm = new NullStream();
+#endif
+#if defined(PLATFORM_RP2040)
+    DBGLN("Serial protocol %u on UART0, %u baud (actual %d)%s", config.GetSerialProtocol(), serialBaud,
+          SERIAL_PROTOCOL_TX.getActualBaud(), invert ? ", inverted" : "");
 #endif
 }
 
@@ -1500,7 +1536,7 @@ static void serialShutdown()
     BackpackOrLogStrm = new NullStream();
     if(serialIO != nullptr)
     {
-        Serial.end();
+        SERIAL_PROTOCOL_TX.end();
         delete serialIO;
         serialIO = nullptr;
     }
@@ -2094,6 +2130,9 @@ void loop()
 
     // read and process any data from serial ports, send any queued non-RC data
     handleSerialIO();
+#if defined(RP2040_BENCH_CRSF_FRAMES)
+    benchCrsfFramesLoop(SERIAL_PROTOCOL_TX, now);  // bench-only, rp2040_stubs/BENCH_crsf
+#endif
 
     checkRebootTime(now);
 

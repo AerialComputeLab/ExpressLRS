@@ -1188,6 +1188,15 @@ RxConfig::Commit()
         return 0;
     }
 
+#if defined(PLATFORM_RP2040)
+    // The flash write below stalls the RP2040 for ~32ms with interrupts off, which would drop
+    // a live link. Saves are meant to happen only while disconnected, so flag any that don't.
+    if (connectionState == connected)
+    {
+        ERRLN("Config commit while connected, the flash write will stall the link");
+    }
+#endif
+
     // Write the struct to eeprom
     m_eeprom->Put(0, m_config);
     m_eeprom->Commit();

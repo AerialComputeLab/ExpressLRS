@@ -9,6 +9,8 @@
 
 #if defined(PLATFORM_ESP32)
 #include <mbedtls/md5.h> // for SetBindPhrase()
+#elif defined(PLATFORM_RP2040)
+#include <MD5Builder.h> // for SetBindPhrase()
 #endif
 
 void BindphraseConfigurable::SetBindPhrase(uint8_t *phrase, size_t phraseLen)
@@ -34,6 +36,14 @@ void BindphraseConfigurable::SetBindPhrase(uint8_t *phrase, size_t phraseLen)
         mbedtls_md5_update_ret(&md5, &BIND_KEY[sizeof(BIND_KEY)-2], 1);
         mbedtls_md5_finish_ret(&md5, UID_md5);
         mbedtls_md5_free(&md5);
+#elif defined(PLATFORM_RP2040)
+        MD5Builder md5;
+        md5.begin();
+        md5.add(BIND_KEY, sizeof(BIND_KEY)-1);
+        md5.add(phrase, phraseLen);
+        md5.add(&BIND_KEY[sizeof(BIND_KEY)-2], 1); // just the " from the end
+        md5.calculate();
+        md5.getBytes(UID_md5);
 #endif
     }
 

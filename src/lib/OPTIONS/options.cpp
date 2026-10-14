@@ -34,6 +34,9 @@ firmware_options_t firmwareOptions;
 #include <esp_partition.h>
 #include "esp_ota_ops.h"
 #endif
+#if defined(RP2040_OPTIONS_FALLBACK)
+#include "rp2040_config_fallback.h"
+#endif
 
 char product_name[ELRSOPTS_PRODUCTNAME_SIZE+1];
 char device_name[ELRSOPTS_DEVICENAME_SIZE+1];
@@ -140,6 +143,18 @@ static void options_LoadFromFlashOrFile(EspFlashStream &strmFlash)
         }
         hasFlash = true;
     }
+#if defined(RP2040_OPTIONS_FALLBACK)
+    else
+    {
+        // Nothing is appended to RP2040 images yet, so use the options compiled into the image
+        // in place of the appended ones
+        if (deserializeJson(flashDoc, RP2040_OPTIONS_FALLBACK_JSON))
+        {
+            return;
+        }
+        hasFlash = true;
+    }
+#endif
 
     // load options.json from the SPIFFS partition
     File file = LittleFS.open("/options.json", "r");

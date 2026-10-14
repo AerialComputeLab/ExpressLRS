@@ -2014,6 +2014,14 @@ void setup()
         #if defined(DEBUG_LOG)
         Serial.begin(serialBaud);
         BackpackOrLogStrm = &Serial;
+        #if defined(PLATFORM_RP2040)
+        // Serial is USB CDC, which drops output until the host opens the port.
+        // Give the host a moment so the boot logs aren't lost.
+        for (const uint32_t start = millis(); !Serial && millis() - start < 3000;)
+        {
+            delay(10);
+        }
+        #endif
         #else
         BackpackOrLogStrm = new NullStream();
         #endif

@@ -5,6 +5,10 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
+#if defined(RP2040_HARDWARE_FALLBACK)
+#include "rp2040_config_fallback.h"
+#endif
+
 typedef enum {
     INT,
     BOOL,
@@ -253,7 +257,18 @@ bool hardware_init(EspFlashStream &strmFlash)
         strmFlash.setPosition(hardwareConfigOffset);
         if (!options_HasStringInFlash(strmFlash))
         {
+#if defined(RP2040_HARDWARE_FALLBACK)
+            // Development fallback: the hardware.json compiled into the image
+            if (deserializeJson(doc, RP2040_HARDWARE_FALLBACK_JSON))
+            {
+                return false;
+            }
+            serializeJson(doc, builtinHardwareConfig);
+            hardware_LoadFieldsFromDoc(doc);
+            return true;
+#else
             return false;
+#endif
         }
 
         strmSrc = &strmFlash;

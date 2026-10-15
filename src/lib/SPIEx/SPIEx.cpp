@@ -93,13 +93,20 @@ void ICACHE_RAM_ATTR SPIExClass::_transfer(uint8_t cs_mask, uint8_t *data, uint3
     // Software CS, and a blocking transfer for writes too: CS can only be released once
     // the last byte has been clocked out. At 10MHz a 13 byte packet takes ~11us.
     // Only inline SDK register helpers are used here so this stays in RAM.
+    spi_hw_t * const hw = spi_get_hw(_spi);
+    // A disabled block (not started, or after end()) never returns data, so the loop below
+    // would spin forever. Leave the buffer untouched instead.
+    if (!(hw->cr1 & SPI_SSPCR1_SSE_BITS))
+    {
+        return;
+    }
+
     for (int i = 0; i < 2; i++)
     {
         if ((cs_mask & (1 << i)) && _nss[i] != UNDEF_PIN)
             gpio_put(_nss[i], false);
     }
 
-    spi_hw_t * const hw = spi_get_hw(_spi);
     uint32_t txCount = 0;
     uint32_t rxCount = 0;
     // Keep the 8 entry FIFO full, and drain RX as we go so it never overflows

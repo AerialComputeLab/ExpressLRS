@@ -2,7 +2,8 @@
 // Run with: pio test -e Pico_W_900_RX_via_UART -f test_embedded_rp2040_sx127x
 //
 // Receive-safe: only reset, register reads and register writes in standby. The radio is
-// never put into TX mode. Writes /hardware.json to LittleFS with the bench pin map.
+// never put into TX mode. Writes /hardware.json to LittleFS with the bench pin map
+// (rp2040_stubs/hardware.json).
 #include <Arduino.h>
 #include <stdarg.h>
 #include <unity.h>
@@ -14,14 +15,11 @@
 #include "SX127xRegs.h"
 #include "options.h"
 
-// Pico W + LoRa915 Rev C bench pin map (same as AGENTS.md, without the power fields)
-static const char BENCH_HARDWARE_JSON[] = R"({
-  "serial_rx": 1, "serial_tx": 0,
-  "radio_miso": 16, "radio_nss": 17, "radio_sck": 18, "radio_mosi": 19,
-  "radio_dio0": 20, "radio_rst": 21, "radio_dio1": 22,
-  "radio_rfo_hf": true,
-  "led": 10
-})";
+// The bench pin map, generated from rp2040_stubs/hardware.json by python/rp2040_config_fallback.py
+#include "rp2040_config_fallback.h"
+#if !defined(RP2040_HARDWARE_FALLBACK)
+#error "custom_hardware_fallback is not set for this env"
+#endif
 
 static SX127xHal hal;
 static volatile uint32_t dio0Count;
@@ -129,7 +127,7 @@ void setup()
 
     LittleFS.begin();
     File f = LittleFS.open("/hardware.json", "w");
-    f.print(BENCH_HARDWARE_JSON);
+    f.print(RP2040_HARDWARE_FALLBACK_JSON);
     f.close();
 
     UNITY_BEGIN();

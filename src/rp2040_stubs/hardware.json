@@ -3,5 +3,7 @@
   "radio_miso": 16, "radio_nss": 17, "radio_sck": 18, "radio_mosi": 19,
   "radio_dio0": 20, "radio_rst": 21, "radio_dio1": 22,
   "radio_rfo_hf": true,
+  "power_min": 0, "power_max": 1, "power_default": 0,
+  "power_control": 0, "power_values": [122, 126],
   "led": 10
 }

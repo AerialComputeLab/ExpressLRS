@@ -118,8 +118,11 @@ uint32_t serialBaud;
 
 /* SERIAL_PROTOCOL_TX is used by CRSF output */
 #if defined(PLATFORM_RP2040)
-// On arduino-pico Serial is USB CDC (used for logging), and UART0 is Serial1
-#define SERIAL_PROTOCOL_TX Serial1
+// On arduino-pico Serial is USB CDC (used for logging). UART0 is driven by RP2040Serial rather
+// than Serial1: SerialUART's mutex makes writes from the tock ISR fail while loop() is reading.
+#include "RP2040Serial.h"
+static RP2040Serial crsfSerial(uart0);
+#define SERIAL_PROTOCOL_TX crsfSerial
 #else
 #define SERIAL_PROTOCOL_TX Serial
 #endif
@@ -137,7 +140,7 @@ uint32_t serialBaud;
 SerialIO *serialIO = nullptr;
 
 #if defined(PLATFORM_RP2040)
-#define SERIAL_PROTOCOL_RX Serial1
+#define SERIAL_PROTOCOL_RX crsfSerial
 #else
 #define SERIAL_PROTOCOL_RX Serial
 #endif
@@ -1377,15 +1380,12 @@ static void setupSerial()
     }
 
     // The pins must belong to UART0 (e.g. GP0/GP1), otherwise the defaults are kept
-    if (!SERIAL_PROTOCOL_TX.setTX(GPIO_PIN_RCSIGNAL_TX) || !SERIAL_PROTOCOL_TX.setRX(GPIO_PIN_RCSIGNAL_RX))
+    if (!SERIAL_PROTOCOL_TX.setPins(GPIO_PIN_RCSIGNAL_TX, GPIO_PIN_RCSIGNAL_RX))
     {
         ERRLN("serial pins TX %d / RX %d are not UART0 pins", GPIO_PIN_RCSIGNAL_TX, GPIO_PIN_RCSIGNAL_RX);
     }
-    SERIAL_PROTOCOL_TX.setInvertTX(invert);
-    SERIAL_PROTOCOL_TX.setInvertRX(invert);
-    // arduino-pico's default RX buffer is 32 bytes (0.75ms at 420k baud), so FC telemetry
-    // bursts would overflow while the main loop is busy. Match the ESP cores' 256 bytes.
-    SERIAL_PROTOCOL_TX.setFIFOSize(256);
+    SERIAL_PROTOCOL_TX.setInvert(invert);
+    // RX buffer is 256 bytes, like the ESP cores, so FC telemetry bursts don't overflow
     SERIAL_PROTOCOL_TX.begin(serialBaud, serialConfig);
 #endif
 

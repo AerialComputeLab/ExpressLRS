@@ -1383,6 +1383,9 @@ static void setupSerial()
     }
     SERIAL_PROTOCOL_TX.setInvertTX(invert);
     SERIAL_PROTOCOL_TX.setInvertRX(invert);
+    // arduino-pico's default RX buffer is 32 bytes (0.75ms at 420k baud), so FC telemetry
+    // bursts would overflow while the main loop is busy. Match the ESP cores' 256 bytes.
+    SERIAL_PROTOCOL_TX.setFIFOSize(256);
     SERIAL_PROTOCOL_TX.begin(serialBaud, serialConfig);
 #endif
 

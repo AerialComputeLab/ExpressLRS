@@ -41,6 +41,9 @@
 #if defined(RP2040_BENCH_CRSF_FRAMES)
 #include "bench_crsf.h"
 #endif
+#if defined(RP2040_BENCH_UART_STATS)
+#include "bench_uartstats.h"
+#endif
 
 #include <LittleFS.h>
 #if defined(PLATFORM_ESP8266)
@@ -1419,7 +1422,11 @@ static void setupSerial()
     }
     else
     {
+#if defined(RP2040_BENCH_UART_STATS)
+        serialIO = new SerialCRSF(benchUartStatsStream(SERIAL_PROTOCOL_TX), SERIAL_PROTOCOL_RX);  // bench-only
+#else
         serialIO = new SerialCRSF(SERIAL_PROTOCOL_TX, SERIAL_PROTOCOL_RX);
+#endif
     }
 
 #if defined(DEBUG_ENABLED)
@@ -2135,6 +2142,9 @@ void loop()
     handleSerialIO();
 #if defined(RP2040_BENCH_CRSF_FRAMES)
     benchCrsfFramesLoop(SERIAL_PROTOCOL_TX, now);  // bench-only, rp2040_stubs/BENCH_crsf
+#endif
+#if defined(RP2040_BENCH_UART_STATS)
+    benchUartStatsLoop(now);  // bench-only, rp2040_stubs/BENCH_uartstats
 #endif
 
     checkRebootTime(now);

@@ -14,3 +14,8 @@ lands, and are not intended for upstream.
   low) sent to the flight controller while there is no link, enabled with
   `-DRP2040_BENCH_CRSF_FRAMES`. It checks the CRSF UART without a transmitter. Remove its hook in
   `rx_main.cpp` loop() before upstreaming.
+- `BENCH_uartstats`: bench-only counters for the CRSF UART, enabled with
+  `-DDEBUG_LOG -DRP2040_BENCH_UART_STATS`. Wraps the CRSF output port and, every 5 s, logs the
+  writes that arduino-pico's `SerialUART` dropped (split by tock ISR and main loop), the longest
+  write, and RX buffer overflows (plan finding #43). Remove its hooks in `rx_main.cpp` (include,
+  `SerialCRSF` construction, loop()) before upstreaming.

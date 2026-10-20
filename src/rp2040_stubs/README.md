@@ -17,5 +17,10 @@ lands, and are not intended for upstream.
 - `BENCH_uartstats`: bench-only counters for the CRSF UART, enabled with
   `-DDEBUG_LOG -DRP2040_BENCH_UART_STATS`. Wraps the CRSF output port and, every 5 s, logs the
   writes that arduino-pico's `SerialUART` dropped (split by tock ISR and main loop), the longest
-  write, and RX buffer overflows (plan finding #43). Remove its hooks in `rx_main.cpp` (include,
+  write, and RX buffer overflows (plan finding #43). Adding `-DRP2040_BENCH_MSP_FRAMES` also routes
+  a 64-byte MSP_REQ frame to the FC every 100 ms through the real passthrough path, to measure the
+  longest interrupts-off write (plan finding #45). Use it only with an FC that ignores MSP, such as
+  ArduPilot: Betaflight answers every request and the replies swamp the telemetry downlink. While
+  disconnected it also logs the radio's mode, IRQ flags, DIO0 level, packet count and frequency
+  (finding #46). Remove its hooks in `rx_main.cpp` (include,
   `SerialCRSF` construction, loop()) before upstreaming.

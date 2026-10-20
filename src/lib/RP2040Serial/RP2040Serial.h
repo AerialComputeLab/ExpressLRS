@@ -13,9 +13,13 @@
  * RC frames were silently dropped at 100Hz. This class has no lock, like the ESP cores.
  *
  * RX is filled from the UART IRQ into a 256 byte ring buffer (the ESP cores' default)
- * and read by loop(). Writes go straight into the 32 byte hardware FIFO and wait for
- * space when it is full. As on ESP, callers must not write from loop() and the ISR at
- * the same time: SerialIO::sendQueuedData() writes with interrupts disabled.
+ * and read by loop(). Writes are copied into a 256 byte TX ring buffer that the UART
+ * IRQ drains into the 32 byte hardware FIFO, so write() returns without waiting for the
+ * line. SerialIO::sendQueuedData() writes forwarded frames (MSP, up to 64 bytes) with
+ * interrupts disabled; waiting on the FIFO there would hold off the timer and radio
+ * IRQs for up to ~1.4ms at 420k baud. Only a full TX ring makes write() wait.
+ * write() may be called from loop() and from ISRs: the TX ring is only touched with
+ * interrupts disabled.
  */
 class RP2040Serial : public Stream
 {
@@ -46,9 +50,12 @@ public:
 
 private:
     static constexpr uint32_t RX_BUFFER_SIZE = 256; // power of two
+    static constexpr uint32_t TX_BUFFER_SIZE = 256; // power of two
     static void uart0IRQ();
     static void uart1IRQ();
     void handleIRQ();
+    // Moves bytes from the TX ring into the hardware FIFO. Call with interrupts disabled.
+    void txFill();
 
     uart_inst_t * const _uart;
     int8_t _tx = -1;
@@ -63,5 +70,10 @@ private:
     volatile uint8_t _rxBuffer[RX_BUFFER_SIZE];
     volatile uint32_t _rxHead = 0;
     volatile uint32_t _rxTail = 0;
+
+    // Only accessed with interrupts disabled (write(), and txFill() from the UART IRQ)
+    uint8_t _txBuffer[TX_BUFFER_SIZE];
+    uint32_t _txHead = 0;
+    uint32_t _txTail = 0;
 };
 #endif

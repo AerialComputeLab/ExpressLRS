@@ -4,6 +4,7 @@
 
 #include <hardware/gpio.h>
 #include <hardware/irq.h>
+#include <hardware/sync.h>
 
 static RP2040Serial *instances[2];
 
@@ -30,6 +31,7 @@ void RP2040Serial::begin(unsigned long baud, uint16_t config)
     end();
 
     _rxHead = _rxTail = 0;
+    _txHead = _txTail = 0;
     _overflow = false;
     _actualBaud = uart_init(_uart, baud);
 
@@ -63,6 +65,9 @@ void RP2040Serial::begin(unsigned long baud, uint16_t config)
     irq_set_exclusive_handler(irq, uart_get_index(_uart) == 0 ? uart0IRQ : uart1IRQ);
     irq_set_enabled(irq, true);
     uart_set_irqs_enabled(_uart, _rx != UNDEF_PIN, false);
+    // The TX IRQ (enabled by txFill() while the ring has data) fires when the FIFO drains
+    // to half full, leaving ~380us at 420k baud before the line goes idle
+    hw_write_masked(&uart_get_hw(_uart)->ifls, 2 << UART_UARTIFLS_TXIFLSEL_LSB, UART_UARTIFLS_TXIFLSEL_BITS);
 
     _running = true;
 }
@@ -113,24 +118,70 @@ size_t ICACHE_RAM_ATTR RP2040Serial::write(const uint8_t *buffer, size_t size)
     {
         return 0;
     }
+    const uint32_t irqState = save_and_disable_interrupts();
     for (size_t i = 0; i < size; i++)
     {
-        uart_putc_raw(_uart, buffer[i]); // waits while the 32 byte TX FIFO is full
+        const uint32_t next = (_txHead + 1) & (TX_BUFFER_SIZE - 1);
+        while (next == _txTail)
+        {
+            txFill(); // ring full: wait for the FIFO to take a byte, the IRQ can't run here
+        }
+        _txBuffer[_txHead] = buffer[i];
+        _txHead = next;
     }
+    txFill();
+    restore_interrupts(irqState);
     return size;
+}
+
+void ICACHE_RAM_ATTR RP2040Serial::txFill()
+{
+    while (_txTail != _txHead && uart_is_writable(_uart))
+    {
+        uart_get_hw(_uart)->dr = _txBuffer[_txTail];
+        _txTail = (_txTail + 1) & (TX_BUFFER_SIZE - 1);
+    }
+    if (_txTail != _txHead)
+    {
+        // The FIFO is full here, so the IRQ fires once it drains below the level
+        hw_set_bits(&uart_get_hw(_uart)->imsc, UART_UARTIMSC_TXIM_BITS);
+    }
+    else
+    {
+        hw_clear_bits(&uart_get_hw(_uart)->imsc, UART_UARTIMSC_TXIM_BITS);
+    }
 }
 
 int RP2040Serial::availableForWrite()
 {
-    return _running && uart_is_writable(_uart) ? 1 : 0;
+    if (!_running)
+    {
+        return 0;
+    }
+    const uint32_t irqState = save_and_disable_interrupts();
+    const int space = (_txTail - _txHead - 1) & (TX_BUFFER_SIZE - 1);
+    restore_interrupts(irqState);
+    return space;
 }
 
 void RP2040Serial::flush()
 {
-    if (_running)
+    if (!_running)
     {
-        uart_tx_wait_blocking(_uart);
+        return;
     }
+    while (true)
+    {
+        const uint32_t irqState = save_and_disable_interrupts();
+        txFill(); // also drains the ring if flush() is called with interrupts disabled
+        const bool empty = _txTail == _txHead;
+        restore_interrupts(irqState);
+        if (empty)
+        {
+            break;
+        }
+    }
+    uart_tx_wait_blocking(_uart);
 }
 
 int RP2040Serial::available()
@@ -158,6 +209,12 @@ int RP2040Serial::peek()
 
 void ICACHE_RAM_ATTR RP2040Serial::handleIRQ()
 {
+    if (uart_get_hw(_uart)->mis & UART_UARTMIS_TXMIS_BITS)
+    {
+        const uint32_t irqState = save_and_disable_interrupts();
+        txFill();
+        restore_interrupts(irqState);
+    }
     while (uart_is_readable(_uart))
     {
         const uint32_t dr = uart_get_hw(_uart)->dr;

@@ -26,3 +26,9 @@ lands, and are not intended for upstream.
   disconnected it also logs the radio's mode, IRQ flags, DIO0 level, packet count and frequency
   (finding #46; SX1276 builds only). Remove its hooks in `rx_main.cpp` (include,
   `SerialCRSF` construction, loop()) before upstreaming.
+- `BENCH_crash`: bench-only crash recorder, enabled with `-DDEBUG_LOG -DRP2040_BENCH_CRASH`. A
+  HardFault, or `loop()` stalling for 1 s (caught even with interrupts disabled: a timer alarm is
+  routed to NMI), saves PC/LR/xPSR to RAM that survives a reset, then reboots via the watchdog.
+  The record is logged at boot and every 10 s; map the PC with `arm-none-eabi-addr2line -e
+  firmware.elf`. A power cycle clears it. Remove its hooks in `rx_main.cpp` (include, end of
+  setup(), loop()) before upstreaming.

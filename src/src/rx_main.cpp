@@ -44,6 +44,9 @@
 #if defined(RP2040_BENCH_UART_STATS)
 #include "bench_uartstats.h"
 #endif
+#if defined(RP2040_BENCH_CRASH)
+#include "bench_crash.h"
+#endif
 
 #include <LittleFS.h>
 #if defined(PLATFORM_ESP8266)
@@ -2121,6 +2124,9 @@ void setup()
     // setup() eats up some of this time, which can cause the first mode connection to fail.
     // Resetting the time here give the first mode a better chance of connection.
     RFmodeLastCycled = millis();
+#if defined(RP2040_BENCH_CRASH)
+    benchCrashSetup();  // bench-only, rp2040_stubs/BENCH_crash
+#endif
 }
 
 #if defined(PLATFORM_ESP32_C3)
@@ -2145,6 +2151,9 @@ void loop()
 #endif
 #if defined(RP2040_BENCH_UART_STATS)
     benchUartStatsLoop(now);  // bench-only, rp2040_stubs/BENCH_uartstats
+#endif
+#if defined(RP2040_BENCH_CRASH)
+    benchCrashLoop(now);  // bench-only, rp2040_stubs/BENCH_crash
 #endif
 
     checkRebootTime(now);

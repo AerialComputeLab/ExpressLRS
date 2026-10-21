@@ -82,6 +82,13 @@ void SX1280Hal::init()
     SPIEx.setBitOrder(MSBFIRST);
     SPIEx.setDataMode(SPI_MODE0);
     SPIEx.setFrequency(17500000);
+#elif defined(PLATFORM_RP2040)
+    // NSS is driven in software by SPIEx, the PL022 can't hold CS across multi-byte transfers
+    SPIEx.begin(GPIO_PIN_SCK, GPIO_PIN_MISO, GPIO_PIN_MOSI, GPIO_PIN_NSS, GPIO_PIN_NSS_2);
+    gpio_pull_up(GPIO_PIN_MISO);
+    // 10 MHz over the bench harness; the SX1280 allows 18 MHz
+    SPIEx.setFrequency(10000000);
+    DBGLN("SPI clock %u Hz", spi_get_baudrate(spi0));
 #endif
 
     //attachInterrupt(digitalPinToInterrupt(GPIO_PIN_BUSY), this->busyISR, CHANGE); //not used atm
@@ -240,34 +247,34 @@ bool ICACHE_RAM_ATTR SX1280Hal::WaitOnBusy(SX12XX_Radio_Number_t radioNumber)
         {
             if (radioNumber == SX12XX_Radio_1)
             {
-                if (digitalRead(GPIO_PIN_BUSY) == LOW) return true;
+                if (SX1280_BUSY_LOW(GPIO_PIN_BUSY)) return true;
             }
             else if (radioNumber == SX12XX_Radio_2)
             {
-                if (GPIO_PIN_BUSY_2 == UNDEF_PIN || digitalRead(GPIO_PIN_BUSY_2) == LOW) return true;
+                if (GPIO_PIN_BUSY_2 == UNDEF_PIN || SX1280_BUSY_LOW(GPIO_PIN_BUSY_2)) return true;
             }
             else if (radioNumber == SX12XX_Radio_All)
             {
                 if (GPIO_PIN_BUSY_2 != UNDEF_PIN)
                 {
-                    if (digitalRead(GPIO_PIN_BUSY) == LOW && digitalRead(GPIO_PIN_BUSY_2) == LOW) return true;
+                    if (SX1280_BUSY_LOW(GPIO_PIN_BUSY) && SX1280_BUSY_LOW(GPIO_PIN_BUSY_2)) return true;
                 }
                 else
                 {
-                    if (digitalRead(GPIO_PIN_BUSY) == LOW) return true;
+                    if (SX1280_BUSY_LOW(GPIO_PIN_BUSY)) return true;
                 }
             }
             // Use this time to call micros().
-            uint32_t now = micros();
+            uint32_t now = SX1280_MICROS();
             if (startTime == 0) startTime = now;
             if ((now - startTime) > wtimeoutUS) return false;
         }
     }
     else
     {
-        uint32_t now = micros();
+        uint32_t now = SX1280_MICROS();
         while ((now - BusyDelayStart) < BusyDelayDuration)
-            now = micros();
+            now = SX1280_MICROS();
         BusyDelayDuration = 0;
     }
     return true;

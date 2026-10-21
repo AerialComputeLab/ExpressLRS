@@ -21,6 +21,17 @@ Heavily modified/simplified by Alessandro Carcione 2020 for ELRS project
 #include "SX1280_Regs.h"
 #include "SX1280.h"
 
+#if defined(PLATFORM_RP2040)
+#include <hardware/gpio.h>
+#include <hardware/structs/timer.h>
+// BUSY is polled from the radio ISR, and arduino-pico's digitalRead() and micros() are in flash
+#define SX1280_BUSY_LOW(pin) (!gpio_get(pin))
+#define SX1280_MICROS() (timer_hw->timerawl)
+#else
+#define SX1280_BUSY_LOW(pin) (digitalRead(pin) == LOW)
+#define SX1280_MICROS() micros()
+#endif
+
 enum SX1280_BusyState_
 {
     SX1280_NOT_BUSY = true,
@@ -59,11 +70,15 @@ public:
 
     uint32_t BusyDelayStart;
     uint32_t BusyDelayDuration;
+#if defined(PLATFORM_RP2040)
+    // Not inlined into the RAM-resident callers, so it would run from flash
+    ICACHE_RAM_ATTR
+#endif
     void BusyDelay(uint32_t duration)
     {
         if (GPIO_PIN_BUSY == UNDEF_PIN)
         {
-            BusyDelayStart = micros();
+            BusyDelayStart = SX1280_MICROS();
             BusyDelayDuration = duration;
         }
     }

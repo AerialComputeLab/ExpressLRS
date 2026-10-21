@@ -3,6 +3,10 @@
 #include "RFAMP_hal.h"
 #include "logging.h"
 
+#if defined(PLATFORM_RP2040)
+#include <hardware/structs/sio.h>
+#endif
+
 RFAMP_hal *RFAMP_hal::instance = nullptr;
 
 RFAMP_hal::RFAMP_hal()
@@ -14,7 +18,7 @@ void RFAMP_hal::init()
 {
     DBGLN("RFAMP_hal Init");
 
-#if defined(PLATFORM_ESP32)
+#if defined(PLATFORM_ESP32) || defined(PLATFORM_RP2040)
     #define SET_BIT(n) ((n != UNDEF_PIN) ? 1ULL << n : 0)
 
     txrx_disable_clr_bits = 0;
@@ -134,6 +138,22 @@ void ICACHE_RAM_ATTR RFAMP_hal::TXenable(SX12XX_Radio_Number_t radioNumber)
         GPIO.out1_w1ts.data = tx1_enable_set_bits >> 32;
         GPIO.out1_w1tc.data = tx1_enable_clr_bits >> 32;
     }
+#elif defined(PLATFORM_RP2040)
+    if (radioNumber == SX12XX_Radio_All)
+    {
+        sio_hw->gpio_set = tx_all_enable_set_bits;
+        sio_hw->gpio_clr = tx_all_enable_clr_bits;
+    }
+    else if (radioNumber == SX12XX_Radio_2)
+    {
+        sio_hw->gpio_set = tx2_enable_set_bits;
+        sio_hw->gpio_clr = tx2_enable_clr_bits;
+    }
+    else
+    {
+        sio_hw->gpio_set = tx1_enable_set_bits;
+        sio_hw->gpio_clr = tx1_enable_clr_bits;
+    }
 #else
     if (!tx_enabled && !rx_enabled)
     {
@@ -172,6 +192,9 @@ void ICACHE_RAM_ATTR RFAMP_hal::RXenable()
 
     GPIO.out1_w1ts.data = rx_enable_set_bits >> 32;
     GPIO.out1_w1tc.data = rx_enable_clr_bits >> 32;
+#elif defined(PLATFORM_RP2040)
+    sio_hw->gpio_set = rx_enable_set_bits;
+    sio_hw->gpio_clr = rx_enable_clr_bits;
 #else
     if (!rx_enabled)
     {
@@ -200,6 +223,8 @@ void ICACHE_RAM_ATTR RFAMP_hal::TXRXdisable()
 #elif defined(PLATFORM_ESP32)
     GPIO.out_w1tc = txrx_disable_clr_bits;
     GPIO.out1_w1tc.data = txrx_disable_clr_bits >> 32;
+#elif defined(PLATFORM_RP2040)
+    sio_hw->gpio_clr = txrx_disable_clr_bits;
 #else
     if (rx_enabled)
     {

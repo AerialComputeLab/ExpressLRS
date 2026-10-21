@@ -205,6 +205,10 @@ void ICACHE_RAM_ATTR SX1280Driver::CommitOutputPower()
     hal.WriteCommand(SX1280_RADIO_SET_TXPARAMS, buf, sizeof(buf), SX12XX_Radio_All);
 }
 
+#if defined(PLATFORM_RP2040)
+// Called from TXnb() and RXnb() in the ISR path, which ESP runs from the flash cache
+ICACHE_RAM_ATTR
+#endif
 void SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode, SX12XX_Radio_Number_t radioNumber)
 {
     /*

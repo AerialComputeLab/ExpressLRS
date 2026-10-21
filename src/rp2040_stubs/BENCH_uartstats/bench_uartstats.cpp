@@ -2,10 +2,12 @@
 #include "device.h" // also lets the library finder add lib/DEVICE, which common.h needs
 #include "common.h"
 #include "logging.h"
+#if defined(RADIO_SX127X)
 #include "SX127xHal.h"
 #include "SX127xRegs.h"
 
 extern SX127xHal hal;
+#endif
 #if defined(RP2040_BENCH_MSP_FRAMES)
 #include "CRSFRouter.h"
 #include "RXOTAConnector.h"
@@ -103,6 +105,7 @@ static void sendBenchMspFrame(uint32_t nowMs)
 }
 #endif
 
+#if defined(RADIO_SX127X)
 // While disconnected: what the radio sees, to tell a deaf radio (packet count flat), packets
 // that ELRS rejects (count rising, DIO0 low) and a missed DIO0 edge (DIO0 stuck high, RxDone set)
 static void reportRadio()
@@ -121,6 +124,7 @@ static void reportRadio()
           (uint32_t)((frf[0] << 16) | (frf[1] << 8) | frf[2]),
           (uint32_t)ExpressLRS_currAirRate_Modparams->index);
 }
+#endif
 
 static void takeStats(WriteStats &from, WriteStats &to)
 {
@@ -161,10 +165,12 @@ void benchUartStatsLoop(uint32_t nowMs)
           loop.calls, loop.shortWrites, loop.maxUs, rxOverflows,
           connectionState == connected ? "connected" : "not connected");
     rxOverflows = 0;
+#if defined(RADIO_SX127X)
     if (connectionState != connected)
     {
         reportRadio();
     }
+#endif
 #if defined(RP2040_BENCH_MSP_FRAMES)
     DBGLN("bench: %u MSP frames queued to the FC", mspFramesSent);
     mspFramesSent = 0;

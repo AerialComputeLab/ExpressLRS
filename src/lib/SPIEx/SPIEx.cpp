@@ -6,6 +6,7 @@
 
 #if defined(PLATFORM_RP2040)
 #include "logging.h"
+#include <hardware/sync.h>
 
 void SPIExClass::begin(int8_t sck, int8_t miso, int8_t mosi, int8_t nss, int8_t nss2)
 {
@@ -101,6 +102,12 @@ void ICACHE_RAM_ATTR SPIExClass::_transfer(uint8_t cs_mask, uint8_t *data, uint3
         return;
     }
 
+    // Unlike ESP, where each transfer is one hardware transaction, this loop can be
+    // preempted. The radio ISR's own transfer would then take this one's bytes from the
+    // shared FIFO and release CS mid-transfer: the ISR reads wrong IRQ flags and leaves
+    // DIO0 high (the radio goes deaf), or this loop waits forever for its stolen bytes.
+    // So loop() callers (Radio.Config(), RXnb()) must not be interrupted here.
+    const uint32_t irqState = save_and_disable_interrupts();
     for (int i = 0; i < 2; i++)
     {
         if ((cs_mask & (1 << i)) && _nss[i] != UNDEF_PIN)
@@ -130,6 +137,7 @@ void ICACHE_RAM_ATTR SPIExClass::_transfer(uint8_t cs_mask, uint8_t *data, uint3
         if ((cs_mask & (1 << i)) && _nss[i] != UNDEF_PIN)
             gpio_put(_nss[i], true);
     }
+    restore_interrupts(irqState);
 #elif defined(PLATFORM_ESP8266)
     // we support only one hardware controlled CS pin, so theres nothing to do to configure it at this point
 

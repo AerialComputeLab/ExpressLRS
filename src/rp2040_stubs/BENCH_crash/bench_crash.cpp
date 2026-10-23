@@ -94,6 +94,12 @@ void benchCrashSetup()
     }
     report();
 
+#if defined(RP2040_BENCH_HANG)
+    // Hang test for the hardware watchdog in rx_main.cpp: leave the recorder disarmed so
+    // the watchdog, not the recorder, has to reset the chip
+    DBGLN("bench: hang test, loop() stops 30 s after boot; recorder disarmed");
+    return;
+#endif
     watchdogAlarm = hardware_alarm_claim_unused(true);
     timer_hw->alarm[watchdogAlarm] = timer_hw->timerawl + HANG_TIMEOUT_US;
     hw_set_bits(&timer_hw->inte, 1u << watchdogAlarm);
@@ -106,6 +112,16 @@ void benchCrashLoop(uint32_t nowMs)
 {
     static uint32_t lastReportMs;
 
+#if defined(RP2040_BENCH_HANG)
+    if (nowMs >= 30000)
+    {
+        DBGLN("bench: hanging loop() now (interrupts on)");
+        Serial.flush();
+        while (true)
+        {
+        }
+    }
+#endif
     if (watchdogAlarm < 0)
     {
         return;

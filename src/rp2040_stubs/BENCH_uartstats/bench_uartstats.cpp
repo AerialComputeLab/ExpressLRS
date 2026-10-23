@@ -2,6 +2,10 @@
 #include "device.h" // also lets the library finder add lib/DEVICE, which common.h needs
 #include "common.h"
 #include "logging.h"
+#include "FHSS.h"
+#include "hwTimer.h"
+
+extern uint8_t uplinkLQ;
 #if defined(RADIO_SX127X)
 #include "SX127xHal.h"
 #include "SX127xRegs.h"
@@ -148,6 +152,15 @@ void benchUartStatsLoop(uint32_t nowMs)
     {
         rxOverflows++;
     }
+    // Count link drops since boot (connected -> anything else), for the soak test
+    static bool wasConnected;
+    static uint32_t linkDrops;
+    const bool isConnected = connectionState == connected;
+    if (wasConnected && !isConnected)
+    {
+        linkDrops++;
+    }
+    wasConnected = isConnected;
 #if defined(RP2040_BENCH_MSP_FRAMES)
     sendBenchMspFrame(nowMs);
 #endif
@@ -165,6 +178,10 @@ void benchUartStatsLoop(uint32_t nowMs)
           loop.calls, loop.shortWrites, loop.maxUs, rxOverflows,
           connectionState == connected ? "connected" : "not connected");
     rxOverflows = 0;
+    // Drift and link quality: fc (SX127x frequency correction) and fo (timer frequency offset)
+    // should stay bounded over a long run, see the Phase 4 soak test
+    DBGLN("bench: link fc %d fo %d lq %u drops %u uptime %u s",
+          FreqCorrection, hwTimer::getFreqOffset(), (uint32_t)uplinkLQ, linkDrops, nowMs / 1000);
 #if defined(RADIO_SX127X)
     if (connectionState != connected)
     {

@@ -24,7 +24,8 @@ lands, and are not intended for upstream.
   longest interrupts-off write (plan finding #45). Use it only with an FC that ignores MSP, such as
   ArduPilot: Betaflight answers every request and the replies swamp the telemetry downlink. While
   disconnected it also logs the radio's mode, IRQ flags, DIO0 level, packet count and frequency
-  (finding #46; SX1276 builds only). Remove its hooks in `rx_main.cpp` (include,
+  (finding #46; SX1276 builds only). A second line every 5 s gives the frequency correction,
+  timer frequency offset, uplink LQ, link drops since boot and uptime, for soak tests. Remove its hooks in `rx_main.cpp` (include,
   `SerialCRSF` construction, loop()) before upstreaming.
 - `BENCH_crash`: bench-only crash recorder, enabled with `-DDEBUG_LOG -DRP2040_BENCH_CRASH`. A
   HardFault, or `loop()` stalling for 1 s (caught even with interrupts disabled: a timer alarm is
@@ -32,3 +33,5 @@ lands, and are not intended for upstream.
   The record is logged at boot and every 10 s; map the PC with `arm-none-eabi-addr2line -e
   firmware.elf`. A power cycle clears it. Remove its hooks in `rx_main.cpp` (include, end of
   setup(), loop()) before upstreaming.
+  Adding `-DRP2040_BENCH_HANG` leaves the recorder disarmed and hangs `loop()` 30 s after boot,
+  to check that the hardware watchdog in `rx_main.cpp` resets the chip (`Rebooted by the watchdog`).

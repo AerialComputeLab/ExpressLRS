@@ -146,6 +146,11 @@ static RP2040Serial crsfSerial(uart0);
 SerialIO *serialIO = nullptr;
 
 #if defined(PLATFORM_RP2040)
+#include <hardware/watchdog.h>
+// Hardware watchdog, fed by loop(). Far longer than any legitimate loop() stall (a config
+// commit holds the CPU ~32 ms), and longer than the 1 s of the bench crash recorder, so a hang
+// is recorded there before the watchdog resets the chip.
+#define RP2040_WATCHDOG_TIMEOUT_MS 2000
 #define SERIAL_PROTOCOL_RX crsfSerial
 #else
 #define SERIAL_PROTOCOL_RX Serial
@@ -2074,6 +2079,12 @@ void setup()
         #else
         BackpackOrLogStrm = new NullStream();
         #endif
+#if defined(PLATFORM_RP2040)
+        if (watchdog_enable_caused_reboot())
+        {
+            DBGLN("Rebooted by the watchdog");
+        }
+#endif
 
         // Init EEPROM and load config, checking powerup count
         setupConfigAndPocCheck();
@@ -2127,6 +2138,9 @@ void setup()
 #if defined(RP2040_BENCH_CRASH)
     benchCrashSetup();  // bench-only, rp2040_stubs/BENCH_crash
 #endif
+#if defined(PLATFORM_RP2040)
+    rp2040.wdt_begin(RP2040_WATCHDOG_TIMEOUT_MS);
+#endif
 }
 
 #if defined(PLATFORM_ESP32_C3)
@@ -2136,6 +2150,10 @@ void loop()
 #endif
 {
     unsigned long now = millis();
+
+#if defined(PLATFORM_RP2040)
+    rp2040.wdt_reset();
+#endif
 
     if (DataUlReceiver.HasFinishedData())
     {

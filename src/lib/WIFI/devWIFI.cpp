@@ -14,6 +14,12 @@
 #include <esp_partition.h>
 #include <esp_ota_ops.h>
 #include <soc/uart_pins.h>
+#elif defined(PLATFORM_RP2040)
+#include <WiFi.h>
+#include <ESP8266mDNS.h>  // arduino-pico's LEAmDNS, the ESP8266 mDNS API
+#include <Updater.h>
+#define wifi_mode_t WiFiMode_t
+#define WIFI_SCAN_RUNNING (-1)  // what arduino-pico's WiFi.scanComplete() returns while scanning
 #else
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
@@ -864,7 +870,7 @@ static void WebUploadDataHandler(AsyncWebServerRequest *request, const String& f
       Update.printError(LOGGING_UART);
     }
     target_seen = false;
-    target_found.clear();
+    target_found = "";
     target_complete = false;
     target_pos = 0;
     totalSize = 0;
@@ -878,7 +884,7 @@ static void WebUploadDataHandler(AsyncWebServerRequest *request, const String& f
         for (size_t i=0 ; i<len ;i++) {
           if (!target_complete && (target_pos >= 4 || target_found.length() > 0)) {
             if (target_pos == 4) {
-              target_found.clear();
+              target_found = "";
             }
             if (data[i] == 0 || target_found.length() > 50) {
               target_complete = true;
@@ -935,9 +941,16 @@ static void WebUdpControl(AsyncWebServerRequest *request)
 }
 #endif
 
+#if !defined(PLATFORM_RP2040)
 static size_t firmwareOffset = 0;
+#endif
 static size_t getFirmwareChunk(uint8_t *data, size_t len, size_t pos)
 {
+#if defined(PLATFORM_RP2040)
+  // Flash is memory-mapped (XIP), so it can be copied directly at any alignment
+  memcpy(data, (const void *)(XIP_BASE + pos), len);
+  return len;
+#else
   uint8_t *dst;
   uint8_t alignedBuffer[7];
   if ((uintptr_t)data % 4 != 0)
@@ -963,6 +976,7 @@ static size_t getFirmwareChunk(uint8_t *data, size_t len, size_t pos)
       *data++ = *dst++;
   }
   return len;
+#endif
 }
 
 static void WebUpdateGetFirmware(AsyncWebServerRequest *request) {
@@ -972,8 +986,15 @@ static void WebUpdateGetFirmware(AsyncWebServerRequest *request) {
       firmwareOffset = running->address;
   }
   #endif
+  #if defined(PLATFORM_RP2040)
+  // The image starts at the beginning of flash. There is no options/hardware trailer: the config is compiled in
+  extern uint8_t __flash_binary_end;
+  const size_t firmwareSize = (size_t)&__flash_binary_end - XIP_BASE;
+  #else
   const size_t firmwareTrailerSize = 4096;  // max number of bytes for the options/hardware layout json
-  AsyncWebServerResponse *response = request->beginResponse("application/octet-stream", (size_t)ESP.getSketchSize() + firmwareTrailerSize, &getFirmwareChunk);
+  const size_t firmwareSize = (size_t)ESP.getSketchSize() + firmwareTrailerSize;
+  #endif
+  AsyncWebServerResponse *response = request->beginResponse("application/octet-stream", firmwareSize, &getFirmwareChunk);
   String filename = String("attachment; filename=\"") + (const char *)&target_name[4] + "_" + VERSION + ".bin\"";
   response->addHeader("Content-Disposition", filename);
   request->send(response);
@@ -1099,7 +1120,7 @@ static void startMDNS()
 
   String instance = String(wifi_hostname) + "_" + WiFi.macAddress();
   instance.replace(":", "");
-  #if defined(PLATFORM_ESP8266)
+  #if defined(PLATFORM_ESP8266) || defined(PLATFORM_RP2040)
     // We have to do it differently on ESP8266 as setInstanceName has the side-effect of chainging the hostname!
     MDNS.setInstanceName(wifi_hostname);
     MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", 80);
@@ -1115,7 +1136,7 @@ static void startMDNS()
     // MDNSResponder::indexDomain and change wifi_hostname as well.
     MDNS.setHostProbeResultCallback([instance](const char* p_pcDomainName, bool p_bProbeResult) {
       if (!p_bProbeResult) {
-        WiFi.hostname(instance);
+        WiFi.hostname(instance.c_str());
         MDNS.setInstanceName(instance);
       }
     });
@@ -1261,7 +1282,7 @@ static void startServices()
 static void HandleWebUpdate()
 {
   unsigned long now = millis();
-  wl_status_t status = WiFi.status();
+  wl_status_t status = (wl_status_t)WiFi.status();
 
   if (status != laststatus && wifiMode == WIFI_STA) {
     DBGLN("WiFi status %d", status);
@@ -1291,7 +1312,7 @@ static void HandleWebUpdate()
         DBGLN("Changing to AP mode");
         WiFi.disconnect();
         wifiMode = WIFI_AP;
-        #if defined(PLATFORM_ESP32)
+        #if defined(PLATFORM_ESP32) || defined(PLATFORM_RP2040)
         WiFi.setHostname(wifi_hostname); // hostname must be set before the mode is set to STA
         #endif
         WiFi.mode(wifiMode);
@@ -1312,7 +1333,7 @@ static void HandleWebUpdate()
       case WIFI_STA:
         DBGLN("Connecting to network '%s'", station_ssid);
         wifiMode = WIFI_STA;
-        #if defined(PLATFORM_ESP32)
+        #if defined(PLATFORM_ESP32) || defined(PLATFORM_RP2040)
         WiFi.setHostname(wifi_hostname); // hostname must be set before the mode is set to STA
         #endif
         WiFi.mode(wifiMode);
@@ -1333,7 +1354,7 @@ static void HandleWebUpdate()
       default:
         break;
     }
-    #if defined(PLATFORM_ESP8266)
+    #if defined(PLATFORM_ESP8266) || defined(PLATFORM_RP2040)
       MDNS.notifyAPChange();
     #endif
     changeMode = WIFI_OFF;
@@ -1350,7 +1371,7 @@ static void HandleWebUpdate()
   if (servicesStarted)
   {
     dnsServer.processNextRequest();
-    #if defined(PLATFORM_ESP8266)
+    #if defined(PLATFORM_ESP8266) || defined(PLATFORM_RP2040)
       MDNS.update();
     #endif
 

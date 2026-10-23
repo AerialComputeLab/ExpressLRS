@@ -23,6 +23,8 @@
 // template/inline functions and plain functions don't conflict in one translation unit.
 #define _ELRS_RAM_SECTION_STR(x) #x
 #define _ELRS_RAM_SECTION(x) __attribute__((section(".time_critical.elrs." _ELRS_RAM_SECTION_STR(x)), noinline))
+// arduino-pico's PolledTimeout.h (pulled in by LEAmDNS) defines an empty IRAM_ATTR
+#undef IRAM_ATTR
 #define IRAM_ATTR _ELRS_RAM_SECTION(__COUNTER__)
 #endif
 

@@ -1312,6 +1312,11 @@ static void HandleWebUpdate()
     DBGLN("Connection failed %d", status);
   }
   if (changeMode != wifiMode && changeMode != WIFI_OFF && (now - changeTime) > 500) {
+    #if defined(PLATFORM_RP2040)
+    // arduino-pico's WiFi.mode() and WiFi.disconnect() leave a running AP up, and
+    // softAP() can't restart one that was never ended, so stop it explicitly
+    WiFi.disconnectAP();
+    #endif
     switch(changeMode) {
       case WIFI_AP:
         DBGLN("Changing to AP mode");

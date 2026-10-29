@@ -853,6 +853,11 @@ static void WebUploadResponseHandler(AsyncWebServerRequest *request) {
 
 static void WebUploadDataHandler(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
   force_update = force_update || request->hasArg("force");
+  #if defined(PLATFORM_RP2040)
+  // lwIP delivers the upload from the CYW43 background IRQ, and each LittleFS sector
+  // write stalls for tens of ms, so loop() can be starved for the whole upload
+  rp2040.wdt_reset();
+  #endif
   if (index == 0) {
     #if defined(TARGET_TX) && defined(PLATFORM_ESP32)
       WifiJoystick::StopJoystickService();
